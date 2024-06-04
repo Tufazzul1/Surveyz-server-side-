@@ -29,16 +29,18 @@ async function run() {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
 
+        const usersCollection = client.db('Serveyz').collection('users');
 
 
 
+        // jwt related api 
         app.post('/jwt', async (req, res) => {
             const user = req.body;
             const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1d' })
             res.send({ token })
         })
 
-        // middlewares
+        // middlewares jwt 
         const verifyToken = (req, res, next) => {
             // console.log("inside verify token", req.headers.authorization);
             if (!req.headers.authorization) {
@@ -53,6 +55,19 @@ async function run() {
                 next();
             })
         }
+
+        // users related api 
+        app.post('/users', async(req, res) =>{
+            const user = req.body;
+
+            const query = {email: user.email};
+            const existingUser = await usersCollection.findOne(query);
+            if(existingUser){
+                return res.send({message: "user already exist", insertedId: null})
+            }
+            const result = await usersCollection.insertOne(user);
+            res.send(result)
+        })
 
 
         // Send a ping to confirm a successful connection
