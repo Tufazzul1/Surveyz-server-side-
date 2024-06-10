@@ -30,7 +30,7 @@ async function run() {
         await client.connect();
 
         const usersCollection = client.db('Serveyz').collection('users');
-
+        const surveysCollection = client.db('Serveyz').collection('surveys');
 
 
         // jwt related api 
@@ -56,16 +56,60 @@ async function run() {
             })
         }
 
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email;
+            const query = { email: email }
+            const user = await usersCollection.findOne(query)
+            const isAdmin = user?.role === "admin";
+            if (!isAdmin) {
+                return res.status(403).send({ message: "fobidden access" })
+            }
+            next();
+        }
+
         // users related api 
-        app.post('/users', async (req, res) => {
+
+        app.get('/users/admin/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email }
+            const user = await usersCollection.findOne(query)
+            let admin = false;
+            if (user) {
+                admin = user?.role === "admin"
+            }
+            res.send({ admin })
+        });
+
+        app.get('/users/surveyor/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                res.status(403).send({ message: 'forbiden access access' })
+            }
+            const query = { email: email }
+            const user = await usersCollection.findOne(query)
+            let surveyor = false;
+            if (user) {
+                surveyor = user?.role === "surveyor"
+            }
+            res.send({ surveyor })
+        });
+
+        app.put('/users', async (req, res) => {
             const user = req.body;
+
+            const options = { upsert: true };
             const query = { email: user.email };
             const existingUser = await usersCollection.findOne(query);
             if (existingUser) {
                 return res.send({ message: "user already exist", insertedId: null })
             }
-            const result = await usersCollection.insertOne(user);
-            res.send(result)
+            const updatedDoc = {
+                $set: {
+                    ...user
+                }
+            }
+            const result = await usersCollection.updateOne(query, updatedDoc, options);
+            res.send(result);
         });
 
         app.get('/users', async (req, res) => {
@@ -73,17 +117,17 @@ async function run() {
             res.send(result);
         });
 
-        app.patch('/users/admin/:id', async (req, res) =>{
+        app.patch('/users/role/:id', async (req, res) => {
             const id = req.params.id;
-            const filter = {_id: new ObjectId(id)};
+            const { role } = req.body; // Extract role from request body
+            const filter = { _id: new ObjectId(id) };
             const updatedDoc = {
                 $set: {
-                    role: "admin"
+                    role: role
                 }
-            }
+            };
             const result = await usersCollection.updateOne(filter, updatedDoc);
-            res.send(result)
-
+            res.send(result);
         });
 
         app.delete('/users/:id', async (req, res) => {
@@ -91,8 +135,67 @@ async function run() {
             const query = { _id: new ObjectId(id) }
             const result = await usersCollection.deleteOne(query);
             res.send(result);
-        })
+        });
 
+        // survey related api 
+        app.post('/surveys', async (req, res) => {
+            try {
+                const data = req.body;
+                const result = await surveysCollection.insertOne(data);
+                res.send(result);
+            } catch (error) {
+                console.error('Error saving survey:', error);
+                res.status(500).send({ error: 'Internal Server Error' });
+            }
+        });
+
+        app.get('/all-surveys', async (req, res) => {
+            const size = parseInt(req.query.size) || 10;
+            const page = parseInt(req.query.page) || 1; 
+            const filter = req.query.filter;
+            const sort = req.query.sort;
+            const search = req.query.search;
+          
+            // Build the query object
+            let query = search ? { title: { $regex: search, $options: 'i' } } : {};
+            if (filter) query.category = filter;
+          
+            // Build the sort options
+            let sortOptions = {};
+            if (sort) sortOptions.deadline = sort === 'asc' ? 1 : -1;
+          
+            try {
+              // Fetch surveys and total count
+              const [surveys, totalCount] = await Promise.all([
+                surveysCollection.find(query).sort(sortOptions).skip((page - 1) * size).limit(size).toArray(),
+                surveysCollection.countDocuments(query)
+              ]);
+          
+              res.send({ surveys, totalCount });
+            } catch (error) {
+              console.error('Error fetching surveys:', error);
+              res.status(500).send({ error: 'Internal Server Error' });
+            }
+          });
+          
+      
+          // Get all surveys data count from db
+          app.get('/surveys-count', async (req, res) => {
+            const filter = req.query.filter;
+            const search = req.query.search;
+            
+            // Build the query object
+            let query = search ? { title: { $regex: search, $options: 'i' } } : {};
+            if (filter) query.category = filter;
+          
+            try {
+              const count = await surveysCollection.countDocuments(query);
+              res.send({ count });
+            } catch (error) {
+              console.error('Error fetching survey count:', error);
+              res.status(500).send({ error: 'Internal Server Error' });
+            }
+          });
 
 
 
