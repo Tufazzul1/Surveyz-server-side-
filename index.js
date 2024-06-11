@@ -108,6 +108,19 @@ async function run() {
             }
             res.send({ proUser })
         });
+        app.get('/users/user/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                res.status(403).send({ message: 'forbidden access access' })
+            }
+            const query = { email: email }
+            const user = await usersCollection.findOne(query)
+            let proUser = false;
+            if (user) {
+                user = user?.role === "user"
+            }
+            res.send({ proUser })
+        });
 
 
         app.put('/users', async (req, res) => {
