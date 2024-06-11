@@ -4,13 +4,13 @@ const app = express();
 const jwt = require('jsonwebtoken')
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 
 // middleware
 app.use(cors());
 app.use(express.json());
-
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6qre6yi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -31,6 +31,9 @@ async function run() {
 
         const usersCollection = client.db('Serveyz').collection('users');
         const surveysCollection = client.db('Serveyz').collection('surveys');
+        const paymentsCollection = client.db('Serveyz').collection('payments');
+        const reportsCollection = client.db("Serveyz").collection("reports");
+
 
 
         // jwt related api 
@@ -68,7 +71,6 @@ async function run() {
         }
 
         // users related api 
-
         app.get('/users/admin/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { email: email }
@@ -93,6 +95,20 @@ async function run() {
             }
             res.send({ surveyor })
         });
+        app.get('/users/prouser/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                res.status(403).send({ message: 'forbidden access access' })
+            }
+            const query = { email: email }
+            const user = await usersCollection.findOne(query)
+            let proUser = false;
+            if (user) {
+                proUser = user?.role === "pro-user"
+            }
+            res.send({ proUser })
+        });
+
 
         app.put('/users', async (req, res) => {
             const user = req.body;
@@ -119,7 +135,7 @@ async function run() {
 
         app.patch('/users/role/:id', async (req, res) => {
             const id = req.params.id;
-            const { role } = req.body; // Extract role from request body
+            const { role } = req.body;
             const filter = { _id: new ObjectId(id) };
             const updatedDoc = {
                 $set: {
@@ -137,6 +153,40 @@ async function run() {
             res.send(result);
         });
 
+        app.post('/reports', async (req, res) => {
+            try {
+                const data = req.body;
+                const result = await reportsCollection.insertOne(data);
+                res.send(result);
+            } catch (error) {
+                console.error('Error saving survey:', error);
+                res.status(500).send({ error: 'Internal Server Error' });
+            }
+        });
+
+        // for vote methods
+        app.get('/reports', async (req, res) => {
+            const result = await reportsCollection.find().toArray();
+            res.send(result);
+        });
+
+        // email method on data get
+        app.get('/reported/:email', async (req, res) => {
+            const userEmails = req.params.email
+            const result = await reportsCollection.find({ userEmail: userEmails }).toArray();
+            res.send(result);
+        });
+
+        // for single vote data
+        app.get('/report/:id', verifyToken, async (req, res) => {
+            if (req.user.email) {
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id) };
+                const result = await reportsCollection.findOne(query);
+                res.send(result);
+            }
+        });
+
         // survey related api 
         app.post('/surveys', async (req, res) => {
             try {
@@ -148,54 +198,110 @@ async function run() {
                 res.status(500).send({ error: 'Internal Server Error' });
             }
         });
+        // get single survey data from db using _id
+        app.get('/surveyDetails/:id', async (req, res) => {
+            try {
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id) }
+                const result = await surveysCollection.findOne(query);
+                res.send(result);
+            } catch (error) {
+                console.error('Error fetching surveys:', error);
+                res.status(500).send({ error: 'Internal Server Error' });
+            }
+        });
 
         app.get('/all-surveys', async (req, res) => {
             const size = parseInt(req.query.size) || 10;
-            const page = parseInt(req.query.page) || 1; 
+            const page = parseInt(req.query.page) || 1;
             const filter = req.query.filter;
             const sort = req.query.sort;
             const search = req.query.search;
-          
+
             // Build the query object
             let query = search ? { title: { $regex: search, $options: 'i' } } : {};
             if (filter) query.category = filter;
-          
+
             // Build the sort options
             let sortOptions = {};
             if (sort) sortOptions.deadline = sort === 'asc' ? 1 : -1;
-          
+
             try {
-              // Fetch surveys and total count
-              const [surveys, totalCount] = await Promise.all([
-                surveysCollection.find(query).sort(sortOptions).skip((page - 1) * size).limit(size).toArray(),
-                surveysCollection.countDocuments(query)
-              ]);
-          
-              res.send({ surveys, totalCount });
+                // Fetch surveys and total count
+                const [surveys, totalCount] = await Promise.all([
+                    surveysCollection.find(query).sort(sortOptions).skip((page - 1) * size).limit(size).toArray(),
+                    surveysCollection.countDocuments(query)
+                ]);
+
+                res.send({ surveys, totalCount });
             } catch (error) {
-              console.error('Error fetching surveys:', error);
-              res.status(500).send({ error: 'Internal Server Error' });
+                console.error('Error fetching surveys:', error);
+                res.status(500).send({ error: 'Internal Server Error' });
             }
-          });
-          
-      
-          // Get all surveys data count from db
-          app.get('/surveys-count', async (req, res) => {
+        });
+
+
+        // Get all surveys data count from db
+        app.get('/surveys-count', async (req, res) => {
             const filter = req.query.filter;
             const search = req.query.search;
-            
+
             // Build the query object
             let query = search ? { title: { $regex: search, $options: 'i' } } : {};
             if (filter) query.category = filter;
-          
+
             try {
-              const count = await surveysCollection.countDocuments(query);
-              res.send({ count });
+                const count = await surveysCollection.countDocuments(query);
+                res.send({ count });
             } catch (error) {
-              console.error('Error fetching survey count:', error);
-              res.status(500).send({ error: 'Internal Server Error' });
+                console.error('Error fetching survey count:', error);
+                res.status(500).send({ error: 'Internal Server Error' });
             }
-          });
+        });
+
+        //   payment realted api 
+        app.post('/create-payment-intent', async (req, res) => {
+            const { price } = req.body;
+            const amount = parseInt(price * 100);
+            // console.log(amount)
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: "usd",
+                payment_method_types: ['card']
+            })
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        })
+
+        app.get('/payments/:email', verifyToken, async (req, res) => {
+            const query = { email: req.params.email };
+            if (req.params.email !== req.decoded.email) {
+                return res.status(403).send({ message: "forbidden access" })
+            }
+            const result = await paymentsCollection.find(query).toArray();
+            res.send(result)
+        })
+        app.post('/payments', async (req, res) => {
+            const payment = req.body;
+
+            try {
+                const paymentResult = await paymentsCollection.insertOne(payment);
+                console.log("Payment Info", payment);
+                const userUpdateResult = await usersCollection.updateOne(
+                    { email: payment?.email },
+                    {
+                        $set: { role: 'pro-user' }
+                    }
+                );
+
+                res.send({ paymentResult, userUpdateResult });
+            } catch (error) {
+                console.error('Error processing payment:', error);
+                res.status(500).send({ message: 'Internal server error' });
+            }
+        });
 
 
 
