@@ -33,6 +33,7 @@ async function run() {
         const surveysCollection = client.db('Serveyz').collection('surveys');
         const paymentsCollection = client.db('Serveyz').collection('payments');
         const reportsCollection = client.db("Serveyz").collection("reports");
+        const votesCollection = client.db("Serveyz").collection("votes");
 
 
 
@@ -115,11 +116,11 @@ async function run() {
             }
             const query = { email: email }
             const user = await usersCollection.findOne(query)
-            let proUser = false;
+            let Nuser = false;
             if (user) {
-                user = user?.role === "user"
+                Nuser = user?.role === "user"
             }
-            res.send({ proUser })
+            res.send({ Nuser })
         });
 
 
@@ -200,6 +201,21 @@ async function run() {
             }
         });
 
+        // update vote count
+        app.post('/votes', async (req, res) => {
+            const voteSurvey = req.body;
+            const voteId = voteSurvey.voteId;
+            const result = await votesCollection.insertOne(voteSurvey);
+            const updateDoc = {
+              $inc: { voteCount: 1 },
+            }
+            const voteQuery = { _id: new ObjectId(voteId) }
+            const updateVoteCount = await surveysCollection.updateOne(voteQuery, updateDoc)
+      
+            res.send(result);
+          });
+      
+
         // survey related api 
         app.post('/surveys', async (req, res) => {
             try {
@@ -237,7 +253,7 @@ async function run() {
 
             // Build the sort options
             let sortOptions = {};
-            if (sort) sortOptions.deadline = sort === 'asc' ? 1 : -1;
+            if (sort) sortOptions.voteCount = sort === 'asc' ? 1 : -1;
 
             try {
                 // Fetch surveys and total count
