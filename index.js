@@ -71,7 +71,8 @@ async function run() {
             next();
         }
 
-        // users related api 
+        // users related api ---------------------
+
         app.get('/users/admin/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { email: email }
@@ -207,16 +208,17 @@ async function run() {
             const voteId = voteSurvey.voteId;
             const result = await votesCollection.insertOne(voteSurvey);
             const updateDoc = {
-              $inc: { voteCount: 1 },
+                $inc: { voteCount: 1 },
             }
             const voteQuery = { _id: new ObjectId(voteId) }
             const updateVoteCount = await surveysCollection.updateOne(voteQuery, updateDoc)
-      
-            res.send(result);
-          });
-      
 
-        // survey related api 
+            res.send(result);
+        });
+
+
+        // survey related api ---------------------------------
+
         app.post('/surveys', async (req, res) => {
             try {
                 const data = req.body;
@@ -269,6 +271,26 @@ async function run() {
             }
         });
 
+        app.get('/allSurveys', async (req, res) => {
+            const result = await surveysCollection.find().toArray();
+            res.send(result);
+        });
+        // update status 
+        app.put('/surveys/:id/status', async (req, res) => {
+            const { id } = req.params;
+            const { status, feedback } = req.body;
+            try {
+                await surveysCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status, feedback } }
+                );
+                res.status(200).send({ message: 'Survey status updated successfully' });
+            } catch (error) {
+                console.error('Failed to update survey status', error);
+                res.status(500).send({ error: 'Failed to update survey status' });
+            }
+        });
+        
 
         // Get all surveys data count from db
         app.get('/surveys-count', async (req, res) => {
@@ -288,7 +310,10 @@ async function run() {
             }
         });
 
-        //   payment realted api 
+
+
+        //   payment realted api ------------------------------
+
         app.post('/create-payment-intent', async (req, res) => {
             const { price } = req.body;
             const amount = parseInt(price * 100);
@@ -330,6 +355,11 @@ async function run() {
                 console.error('Error processing payment:', error);
                 res.status(500).send({ message: 'Internal server error' });
             }
+        });
+        // get payments 
+        app.get('/payments', async (req, res) => {
+            const result = await paymentsCollection.find().toArray();
+            res.send(result);
         });
 
 
