@@ -9,7 +9,11 @@ const port = process.env.PORT || 5000;
 
 
 // middleware
-app.use(cors());
+app.use(cors({
+    origin: ["http://localhost:5173",
+        "https://surveyz-17ed8.firebaseapp.com",
+        "https://surveyz-17ed8.web.app"]
+}));
 app.use(express.json());
 
 
@@ -27,7 +31,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
 
         const usersCollection = client.db('Serveyz').collection('users');
         const surveysCollection = client.db('Serveyz').collection('surveys');
@@ -113,16 +117,16 @@ async function run() {
         app.get('/users/user/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             if (email !== req.decoded.email) {
-              res.status(403).send({ message: 'forbidden access access' })
+                res.status(403).send({ message: 'forbidden access access' })
             }
             const query = { email: email }
             const user = await usersCollection.findOne(query)
             let User = false;
             if (user) {
-              User = user?.role === "user"
+                User = user?.role === "user"
             }
             res.send({ User })
-          });
+        });
 
 
         app.put('/users', async (req, res) => {
@@ -289,8 +293,8 @@ async function run() {
                 console.error('Failed to update survey status', error);
                 res.status(500).send({ error: 'Failed to update survey status' });
             }
-          });
-          
+        });
+
         // Get all surveys data count from db
         app.get('/surveys-count', async (req, res) => {
             const filter = req.query.filter;
@@ -364,7 +368,7 @@ async function run() {
 
 
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
+        // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
