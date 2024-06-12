@@ -113,16 +113,16 @@ async function run() {
         app.get('/users/user/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             if (email !== req.decoded.email) {
-                res.status(403).send({ message: 'forbidden access access' })
+              res.status(403).send({ message: 'forbidden access access' })
             }
             const query = { email: email }
             const user = await usersCollection.findOne(query)
-            let Nuser = false;
+            let User = false;
             if (user) {
-                Nuser = user?.role === "user"
+              User = user?.role === "user"
             }
-            res.send({ Nuser })
-        });
+            res.send({ User })
+          });
 
 
         app.put('/users', async (req, res) => {
@@ -289,9 +289,8 @@ async function run() {
                 console.error('Failed to update survey status', error);
                 res.status(500).send({ error: 'Failed to update survey status' });
             }
-        });
-        
-
+          });
+          
         // Get all surveys data count from db
         app.get('/surveys-count', async (req, res) => {
             const filter = req.query.filter;
