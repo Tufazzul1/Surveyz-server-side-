@@ -114,6 +114,7 @@ async function run() {
             }
             res.send({ proUser })
         });
+
         app.get('/users/user/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             if (email !== req.decoded.email) {
@@ -212,7 +213,7 @@ async function run() {
             const voteId = voteSurvey.voteId;
             const result = await votesCollection.insertOne(voteSurvey);
             const updateDoc = {
-                $inc: { voteCount: 1 },
+                $inc: { voteCount: +1 },
             }
             const voteQuery = { _id: new ObjectId(voteId) }
             const updateVoteCount = await surveysCollection.updateOne(voteQuery, updateDoc)
@@ -279,6 +280,34 @@ async function run() {
             const result = await surveysCollection.find().toArray();
             res.send(result);
         });
+
+        // Get all surveys data methods
+        app.get('/surveys', async (req, res) => {
+            let sortQuery = { voteCount: 1 };
+            let sortQuery1 = { timestamp: 1 };
+            const { sort } = req.query;
+            if (sort === 'voteCount_DESC') {
+                sortQuery = { voteCount: -1 };
+            }
+            if (sort === 'timestamp_DESC') {
+                sortQuery = { timestamp: -1 };
+            }
+            try {
+                const result = await surveysCollection.find({}).sort(sortQuery, sortQuery1).limit(6).toArray();
+                res.send(result);
+            } catch (error) {
+                console.error("Error fetching top foods:", error);
+                res.status(500).json({ error: "Internal Server Error" });
+            }
+        });
+        
+        // get user with email 
+        app.get('/surveys/:email', async (req, res) => {
+            const userEmail = req.params.email
+            const result = await surveysCollection.find({ 'surveyor.email': userEmail }).toArray();
+            res.send(result);
+        });
+
         // update status 
         app.put('/surveys/:id/status', async (req, res) => {
             const { id } = req.params;
@@ -292,6 +321,70 @@ async function run() {
             } catch (error) {
                 console.error('Failed to update survey status', error);
                 res.status(500).send({ error: 'Failed to update survey status' });
+            }
+        });
+        // Update single survey 
+        // app.put('/surveys/:id', async (req, res) => {
+        //     const id = req.params.id;
+        //     const survey = req.body;
+        //     const filter = { _id: new ObjectId(id) }
+        //     const options = { upsert: true }
+        //     const updateSurvey = {
+        //         $set: {
+        //             ...survey
+        //         }
+        //     }
+        //     const result = await surveysCollection.updateOne(filter, updateSurvey, options);
+        //     res.send(result);
+        // });
+        app.put('/surveys/:id', async (req, res) => {
+            const id = req.params.id;
+            const survey = req.body;
+        
+            // Validate ID format
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ message: 'Invalid survey ID' });
+            }
+        
+            const filter = { _id: new ObjectId(id) };
+            const options = { upsert: false }; 
+            const updateSurvey = {
+                $set: {
+                    ...survey,
+                    updatedAt: new Date() 
+                }
+            };
+        
+            try {
+                const result = await surveysCollection.updateOne(filter, updateSurvey, options);
+                if (result.matchedCount === 0) {
+                    return res.status(404).send({ message: 'Survey not found' });
+                }
+                res.send({ message: 'Survey updated successfully', result });
+            } catch (error) {
+                console.error('Error updating survey:', error);
+                res.status(500).send({ message: 'An error occurred while updating the survey' });
+            }
+        });
+
+        // surveyor survey details 
+        app.get('/votes/:email', async (req, res) => {
+            const surveyorEmail = req.params.email;
+            const result = await votesCollection.find({ 'surveyor.email': surveyorEmail }).toArray();
+            console.log(result);
+            res.send(result);
+        }); 
+        
+        // single survey
+        app.get('/vote/:id', async (req, res) => {
+            try {
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id) }
+                const result = await votesCollection.findOne(query);
+                res.send(result);
+            } catch (error) {
+                console.error('Error fetching surveys:', error);
+                res.status(500).send({ error: 'Internal Server Error' });
             }
         });
 
