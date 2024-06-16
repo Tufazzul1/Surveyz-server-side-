@@ -300,7 +300,7 @@ async function run() {
                 res.status(500).json({ error: "Internal Server Error" });
             }
         });
-        
+
         // get user with email 
         app.get('/surveys/:email', async (req, res) => {
             const userEmail = req.params.email
@@ -406,6 +406,26 @@ async function run() {
             }
         });
 
+        // user vote and report related api information 
+        app.get('/userVotes/:email', async (req, res) => {
+            const voterEmail = req.params.email;
+            const result = await votesCollection.find({ "voter.voter_email": voterEmail }).toArray();
+            console.log(result);
+            res.send(result);
+        });
+        app.get('/userReports/:email', async (req, res) => {
+            const voterEmail = req.params.email;
+            const result = await reportsCollection.find({ "userEmail": voterEmail }).toArray();
+            console.log(result);
+            res.send(result);
+        });
+        // get comments 
+        app.get('/userComment/:email', async (req, res) => {
+            const voterEmail = req.params.email;
+            const result = await votesCollection.find({ "voter.voter_email": voterEmail }).toArray();
+            console.log(result);
+            res.send(result);
+        });
 
 
         //   payment realted api ------------------------------
