@@ -284,20 +284,26 @@ async function run() {
         // Get all surveys data methods
         app.get('/surveys', async (req, res) => {
             let sortQuery = { voteCount: -1 };
-            let sortQuery1 = { timestamp: 1 };
             const { sort } = req.query;
 
             if (sort === 'voteCount_DESC') {
                 sortQuery = { voteCount: 1 };
             }
-            if (sort === 'timestamp_DESC') {
-                sortQuery = { timestamp: -1 };
-            }
             try {
-                const result = await surveysCollection.find({}).sort(sortQuery, sortQuery1).limit(6).toArray();
+                const result = await surveysCollection.find({}).sort(sortQuery).limit(6).toArray();
                 res.send(result);
             } catch (error) {
                 console.error("Error fetching top foods:", error);
+                res.status(500).json({ error: "Internal Server Error" });
+            }
+        });
+
+        app.get('/latest-surveys', async (req, res) => {
+            try {
+                const result = await surveysCollection.find({}).sort({ timestamp: -1 }).limit(6).toArray();
+                res.send(result);
+            } catch (error) {
+                console.error("Error fetching latest surveys:", error);
                 res.status(500).json({ error: "Internal Server Error" });
             }
         });
