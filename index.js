@@ -334,20 +334,20 @@ async function run() {
         app.put('/surveys/:id', async (req, res) => {
             const id = req.params.id;
             const survey = req.body;
-        
+
             if (!ObjectId.isValid(id)) {
                 return res.status(400).send({ message: 'Invalid survey ID' });
             }
-        
+
             const filter = { _id: new ObjectId(id) };
-            const options = { upsert: false }; 
+            const options = { upsert: false };
             const updateSurvey = {
                 $set: {
                     ...survey,
-                    updatedAt: new Date() 
+                    updatedAt: new Date()
                 }
             };
-        
+
             try {
                 const result = await surveysCollection.updateOne(filter, updateSurvey, options);
                 if (result.matchedCount === 0) {
@@ -366,8 +366,8 @@ async function run() {
             const result = await votesCollection.find({ 'surveyor.email': surveyorEmail }).toArray();
             console.log(result);
             res.send(result);
-        }); 
-        
+        });
+
         // single survey
         app.get('/vote/:id', async (req, res) => {
             try {
