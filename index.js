@@ -283,11 +283,12 @@ async function run() {
 
         // Get all surveys data methods
         app.get('/surveys', async (req, res) => {
-            let sortQuery = { voteCount: 1 };
+            let sortQuery = { voteCount: -1 };
             let sortQuery1 = { timestamp: 1 };
             const { sort } = req.query;
+
             if (sort === 'voteCount_DESC') {
-                sortQuery = { voteCount: -1 };
+                sortQuery = { voteCount: 1 };
             }
             if (sort === 'timestamp_DESC') {
                 sortQuery = { timestamp: -1 };
@@ -323,25 +324,11 @@ async function run() {
                 res.status(500).send({ error: 'Failed to update survey status' });
             }
         });
-        // Update single survey 
-        // app.put('/surveys/:id', async (req, res) => {
-        //     const id = req.params.id;
-        //     const survey = req.body;
-        //     const filter = { _id: new ObjectId(id) }
-        //     const options = { upsert: true }
-        //     const updateSurvey = {
-        //         $set: {
-        //             ...survey
-        //         }
-        //     }
-        //     const result = await surveysCollection.updateOne(filter, updateSurvey, options);
-        //     res.send(result);
-        // });
+
         app.put('/surveys/:id', async (req, res) => {
             const id = req.params.id;
             const survey = req.body;
         
-            // Validate ID format
             if (!ObjectId.isValid(id)) {
                 return res.status(400).send({ message: 'Invalid survey ID' });
             }
@@ -381,6 +368,7 @@ async function run() {
                 const id = req.params.id;
                 const query = { _id: new ObjectId(id) }
                 const result = await votesCollection.findOne(query);
+                console.log(result)
                 res.send(result);
             } catch (error) {
                 console.error('Error fetching surveys:', error);
